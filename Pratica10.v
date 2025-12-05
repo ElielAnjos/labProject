@@ -77,7 +77,7 @@ module Pratica10(
 						  .r(rgb_next[11:8]), 
 						  .g(rgb_next[7:4]), 
 						  .b(rgb_next[3:0]),
-						  .score()
+						  .score(score)
 						  );
 
 						  
