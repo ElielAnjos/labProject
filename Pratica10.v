@@ -29,29 +29,30 @@ module Pratica10(
     output                  VGA_VS
 );
 
-   
+    
     // DECLARAÇÃO DE SINAIS
-   
+    
     wire clk, async_rstn, sync_rstn, video_on, pixel_tick, right_k, left_k;
     wire [9:0] pixel_x, pixel_y;
     reg  [11:0] rgb_reg;
     wire [11:0] rgb_next;
     wire [3:0] score; 
 
+    // Novos fios para converter Hex -> Decimal
+    wire [3:0] score_unidade;
+    wire [3:0] score_dezena;
+
     assign clk = MAX10_CLK1_50;
-    assign async_rstn = ~SW[0]; // Reset assíncrono na chave SW0
+    assign async_rstn = ~SW[0]; 
 
     // INSTANCIAÇÃO DOS MÓDULOS DE LÓGICA E VGA
-    
 
-    // Sincronizador de Reset
     AsyncInputSynchronizer u_sync (
         .clk(clk), 
         .asyncn(async_rstn), 
         .syncn(sync_rstn)
     );
      
-    // Detector de Borda para Botão Direito (KEY0)
     EdgeDetector right_key (
         .clk(clk), 
         .rstn(sync_rstn), 
@@ -59,7 +60,6 @@ module Pratica10(
         .pulse(right_k)
     );
                                     
-    // Detector de Borda para Botão Esquerdo (KEY1)
     EdgeDetector left_key (
         .clk(clk), 
         .rstn(sync_rstn), 
@@ -67,7 +67,6 @@ module Pratica10(
         .pulse(left_k)
     );
 
-    // Sincronizador VGA
     VGASync vsync_unit (
         .clk(clk), 
         .rstn(sync_rstn), 
@@ -79,7 +78,6 @@ module Pratica10(
         .pixel_y(pixel_y)
     );
     
-    // Gerador de Pixels (Jogo)
     PixelGen px_gen (
         .clk(clk), 
         .rstn(sync_rstn), 
@@ -92,33 +90,41 @@ module Pratica10(
         .r(rgb_next[11:8]), 
         .g(rgb_next[7:4]), 
         .b(rgb_next[3:0]),
-        .score(score) // Recebe a pontuação aqui
+        .score(score) 
     );
 
-    
-    // SAÍDA DE VÍDEO (BUFFER)
-    
+    // Buffer de vídeo
     always@(posedge clk) begin
         if(pixel_tick)
             rgb_reg <= rgb_next;
     end
-            
     assign {VGA_R, VGA_G, VGA_B} = rgb_reg;
 
-    // CONTROLE DOS DISPLAYS DE 7 SEGMENTOS
-   
-    // Display HEX0: Mostra a pontuação (Unidade)
+
+    // CONVERSÃO E CONTROLE DOS DISPLAYS
+
+
+    // Lógica para converter Binário (0-15) para Decimal (Dois dígitos)
+    // Se score >= 10, dezena é 1 e unidade é (score - 10). 
+    // Senão, dezena é 0 e unidade é score.
+    assign score_dezena  = (score >= 4'd10) ? 4'd1 : 4'd0;
+    assign score_unidade = (score >= 4'd10) ? (score - 4'd10) : score;
+
+    // Display HEX0: Mostra a UNIDADE (0-9)
     SEG7_LUT u_seg0 (
-        .iDIG(score),      // Entrada: Valor do score
-        .oSEG(HEX0[6:0])   // Saída: Segmentos A-G
+        .iDIG(score_unidade),      
+        .oSEG(HEX0[6:0])
     );
-    assign HEX0[7] = 1'b1; // Ponto decimal desligado
+    assign HEX0[7] = 1'b1; 
 
-    
-   
-    assign HEX1[7] = 1'b1; // Ponto decimal desligado
+    // Display HEX1: Mostra a DEZENA (0 ou 1)
+    SEG7_LUT u_seg1 (
+        .iDIG(score_dezena), 
+        .oSEG(HEX1[6:0])
+    );
+    assign HEX1[7] = 1'b1; 
 
-    // Desligar displays não utilizados (Ativo Baixo: 1 = Apagado)
+    // Desligar displays não utilizados
     assign HEX2 = 8'hFF;
     assign HEX3 = 8'hFF;
     assign HEX4 = 8'hFF;
@@ -127,30 +133,30 @@ module Pratica10(
 endmodule
 
 // MÓDULO AUXILIAR: DECODIFICADOR 7 SEGMENTOS
-// (Incluído no mesmo arquivo para evitar erro de "Undefined Entity")
 
 module SEG7_LUT (
     input  [3:0] iDIG, 
     output reg [6:0] oSEG
 );
     always @(*) begin
-        case (iDIG)       // gfe_dcba
-            4'h0: oSEG = 7'b100_0000;
-            4'h1: oSEG = 7'b111_1001;
-            4'h2: oSEG = 7'b010_0100;
-            4'h3: oSEG = 7'b011_0000;
-            4'h4: oSEG = 7'b001_1001;
-            4'h5: oSEG = 7'b001_0010;
-            4'h6: oSEG = 7'b000_0010;
-            4'h7: oSEG = 7'b111_1000;
-            4'h8: oSEG = 7'b000_0000;
-            4'h9: oSEG = 7'b001_0000;
-            4'hA: oSEG = 7'b000_1000;
-            4'hB: oSEG = 7'b000_0011;
-            4'hC: oSEG = 7'b100_0110;
-            4'hD: oSEG = 7'b010_0001;
-            4'hE: oSEG = 7'b000_0110;
-            4'hF: oSEG = 7'b000_1110;
+        case (iDIG)       
+            4'h0: oSEG = 7'b100_0000; // 0
+            4'h1: oSEG = 7'b111_1001; // 1
+            4'h2: oSEG = 7'b010_0100; // 2
+            4'h3: oSEG = 7'b011_0000; // 3
+            4'h4: oSEG = 7'b001_1001; // 4
+            4'h5: oSEG = 7'b001_0010; // 5
+            4'h6: oSEG = 7'b000_0010; // 6
+            4'h7: oSEG = 7'b111_1000; // 7
+            4'h8: oSEG = 7'b000_0000; // 8
+            4'h9: oSEG = 7'b001_0000; // 9
+            
+            4'hA: oSEG = 7'b000_1000; 
+            4'hB: oSEG = 7'b000_0011; 
+            4'hC: oSEG = 7'b100_0110; 
+            4'hD: oSEG = 7'b010_0001; 
+            4'hE: oSEG = 7'b000_0110; 
+            4'hF: oSEG = 7'b000_1110; 
             default: oSEG = 7'b111_1111;
         endcase
     end
